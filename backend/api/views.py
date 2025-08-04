@@ -4,6 +4,7 @@ from django.core.paginator import Paginator
 from django.db.models import Count
 import json
 from .models import Task, User, Order
+from django.shortcuts import get_object_or_404
 
 # Existing task views (keep these)
 @csrf_exempt
@@ -197,3 +198,64 @@ def customer_order_count(request, customer_id):
         
     except Exception as e:
         return JsonResponse({'error': f'Server error: {str(e)}'}, status=500)
+
+
+@csrf_exempt
+def orders_for_customer(request, user_id):
+    """Get all orders for a specific customer"""
+    # Validate user_id is integer
+    try:
+        user_id = int(user_id)
+    except ValueError:
+        return JsonResponse({'error': 'Invalid user ID'}, status=400)
+
+    # Check user exists
+    user = get_object_or_404(User, id=user_id)
+
+    if request.method == 'GET':
+        orders = Order.objects.filter(user_id=user.id).order_by('-created_at')
+        data = []
+        for order in orders:
+            data.append({
+                'order_id': order.order_id,
+                'status': order.status,
+                'gender': order.gender,
+                'created_at': order.created_at.isoformat(),
+                'returned_at': order.returned_at.isoformat() if order.returned_at else None,
+                'shipped_at': order.shipped_at.isoformat() if order.shipped_at else None,
+                'delivered_at': order.delivered_at.isoformat() if order.delivered_at else None,
+                'num_of_item': order.num_of_item
+            })
+        return JsonResponse({'orders': data}, status=200)
+    else:
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+@csrf_exempt
+def order_detail(request, order_id):
+    """Get specific order details"""
+    # Validate order_id is integer
+    try:
+        order_id = int(order_id)
+    except ValueError:
+        return JsonResponse({'error': 'Invalid order ID'}, status=400)
+
+    # Get order or 404
+    order = get_object_or_404(Order, order_id=order_id)
+
+    if request.method == 'GET':
+        data = {
+            'order_id': order.order_id,
+            'user_id': order.user.id,
+            'customer_name': f"{order.user.first_name} {order.user.last_name}",
+            'customer_email': order.user.email,
+            'status': order.status,
+            'gender': order.gender,
+            'created_at': order.created_at.isoformat(),
+            'returned_at': order.returned_at.isoformat() if order.returned_at else None,
+            'shipped_at': order.shipped_at.isoformat() if order.shipped_at else None,
+            'delivered_at': order.delivered_at.isoformat() if order.delivered_at else None,
+            'num_of_item': order.num_of_item
+        }
+        return JsonResponse(data, status=200)
+    else:
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
